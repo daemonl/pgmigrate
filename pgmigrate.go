@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/lib/pq"
 )
@@ -169,9 +170,18 @@ func GetTestSchema(testURL string) (*sql.Conn, error) {
 	if err != nil {
 		return nil, err
 	}
-	if err := dbPool.Ping(); err != nil {
+
+	for tries := 0; tries < 30; tries++ {
+		err = dbPool.Ping()
+		if err == nil {
+			break
+		}
+		time.Sleep(time.Second)
+	}
+	if err != nil {
 		return nil, err
 	}
+
 	ctx := context.Background()
 	conn, err := dbPool.Conn(ctx)
 	if err != nil {
