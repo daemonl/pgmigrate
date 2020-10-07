@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"log"
+	"os"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -13,6 +14,8 @@ import (
 
 	"github.com/lib/pq"
 )
+
+var shouldLog = os.Getenv("PGMIGRATE_LOG") != ""
 
 type Queryer interface {
 	ExecContext(context.Context, string, ...interface{}) (sql.Result, error)
@@ -48,7 +51,9 @@ func MigrateDatabase(ctx context.Context, conn Queryer, migrationsDir string, ta
 		return err
 	}
 
-	log.Printf("Migrate from %d to %d", currentVersion, targetVersion)
+	if shouldLog {
+		log.Printf("Migrate from %d to %d", currentVersion, targetVersion)
+	}
 
 	migrateFiles, err := ioutil.ReadDir(migrationsDir)
 	if err != nil {
@@ -121,7 +126,9 @@ func MigrateDatabase(ctx context.Context, conn Queryer, migrationsDir string, ta
 }
 
 func runFile(ctx context.Context, conn Queryer, filename string, version int) error {
-	log.Printf("File: %s", filename)
+	if shouldLog {
+		log.Printf("File: %s", filename)
+	}
 	bytes, err := ioutil.ReadFile(filename)
 	if err != nil {
 		return err
