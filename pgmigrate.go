@@ -171,7 +171,7 @@ func runFile(ctx context.Context, conn Queryer, filename string, version int) er
 	return nil
 }
 
-func GetTestSchema(testURL string) (*sql.Conn, error) {
+func GetTestSchema(testURL string, name string) (*sql.Conn, error) {
 
 	dbPool, err := sql.Open("postgres", testURL)
 	if err != nil {
@@ -195,11 +195,11 @@ func GetTestSchema(testURL string) (*sql.Conn, error) {
 		return nil, err
 	}
 
-	if _, err := conn.ExecContext(ctx, `
-		DROP SCHEMA IF EXISTS testing CASCADE;
-		CREATE SCHEMA testing;
-		SET search_path TO testing;
-	`); err != nil {
+	if _, err := conn.ExecContext(ctx, fmt.Sprintf(`
+		DROP SCHEMA IF EXISTS %s CASCADE;
+		CREATE SCHEMA %s;
+		SET search_path TO %s;
+	`, name, name, name)); err != nil {
 		return nil, err
 	}
 
