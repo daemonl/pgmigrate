@@ -42,7 +42,7 @@ func TestMigrate(t *testing.T) {
 		t.Fatalf("Not a test URL: %s", testURL)
 	}
 
-	conn, err := GetTestSchema(testURL)
+	conn, err := GetTestSchema(testURL, "test")
 	if err != nil {
 		t.Fatal(err.Error())
 	}

@@ -3,6 +3,7 @@ package pgmigrate
 import (
 	"context"
 	"database/sql"
+	"database/sql/driver"
 	"fmt"
 	"io/ioutil"
 	"log"
@@ -171,15 +172,36 @@ func runFile(ctx context.Context, conn Queryer, filename string, version int) er
 	return nil
 }
 
-func GetTestSchema(testURL string, name string) (*sql.Conn, error) {
+type CallbackConnector struct {
+	*pq.Connector
+	Callback func(context.Context, driver.Conn) error
+}
 
-	dbPool, err := sql.Open("postgres", testURL)
+func (tc *CallbackConnector) Connect(ctx context.Context) (driver.Conn, error) {
+	conn, err := tc.Connector.Connect(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if err := tc.Callback(ctx, conn); err != nil {
+		return nil, err
+	}
+	return conn, nil
+}
+
+func GetTestSchema(testURL string, name string) (*sql.DB, error) {
+
+	connector, err := pq.NewConnector(testURL)
+	if err != nil {
+		return nil, err
+	}
+
+	conn := sql.OpenDB(connector)
 	if err != nil {
 		return nil, err
 	}
 
 	for tries := 0; tries < 30; tries++ {
-		err = dbPool.Ping()
+		err = conn.Ping()
 		if err == nil {
 			break
 		}
@@ -190,18 +212,25 @@ func GetTestSchema(testURL string, name string) (*sql.Conn, error) {
 	}
 
 	ctx := context.Background()
-	conn, err := dbPool.Conn(ctx)
-	if err != nil {
-		return nil, err
-	}
-
 	if _, err := conn.ExecContext(ctx, fmt.Sprintf(`
 		DROP SCHEMA IF EXISTS %s CASCADE;
 		CREATE SCHEMA %s;
-		SET search_path TO %s;
-	`, name, name, name)); err != nil {
+	`, name, name)); err != nil {
 		return nil, err
 	}
+	conn.Close()
 
-	return conn, nil
+	testConnector := &CallbackConnector{
+		Connector: connector,
+		Callback: func(ctx context.Context, conn driver.Conn) error {
+			execerCtx := conn.(driver.ExecerContext)
+			_, err := execerCtx.ExecContext(ctx, fmt.Sprintf("SET search_path TO %s", name), []driver.NamedValue{})
+			if err != nil {
+				return fmt.Errorf("preparing connection to search_path: %w", err)
+			}
+			return nil
+		},
+	}
+
+	return sql.OpenDB(testConnector), nil
 }
